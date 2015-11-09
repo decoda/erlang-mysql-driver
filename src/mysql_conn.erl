@@ -859,9 +859,9 @@ get_lcb(<<255:8, Rest/binary>>) ->
 %% Descrip.: Send a packet to the MySQL server.
 %% Returns : result of gen_tcp:send/2
 %%--------------------------------------------------------------------
-do_send(Sock, Packet, SeqNum, _LogFun) when is_binary(Packet), is_integer(SeqNum) ->
-    Data = <<(size(Packet)):24/little, SeqNum:8, Packet/binary>>,
-    gen_tcp:send(Sock, Data).
+%% do_send(Sock, Packet, SeqNum, _LogFun) when is_binary(Packet), is_integer(SeqNum) ->
+%%     Data = <<(size(Packet)):24/little, SeqNum:8, Packet/binary>>,
+%%     gen_tcp:send(Sock, Data).
 
 %%--------------------------------------------------------------------
 %% Function: normalize_version(Version, LogFun)
