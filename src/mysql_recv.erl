@@ -9,7 +9,7 @@
 %%% Note    : All MySQL code was written by Magnus Ahltorp, originally
 %%%           in the file mysql.erl - I just moved it here.
 %%%
-%%% Copyright (c) 2001-2004 Kungliga Tekniska Högskolan
+%%% Copyright (c) 2001-2004 Kungliga Tekniska Hé°ƒskolan
 %%% See the file COPYING
 %%%
 %%%           Signals this receiver process can send to it's parent
@@ -125,9 +125,9 @@ loop(State) ->
     Sock = State#state.socket,
     receive
 	{tcp, Sock, InData} ->
-	    NewData = list_to_binary([State#state.data, InData]),
+	    %NewData = list_to_binary([State#state.data, InData]),
 	    %% send data to parent if we have enough data
-	    Rest = sendpacket(State#state.parent, NewData),
+	    Rest = sendpacket(State#state.parent, <<(State#state.data)/binary, InData/binary>>),
 	    loop(State#state{data = Rest});
 	{tcp_error, Sock, Reason} ->
 	    LogFun = State#state.log_fun,
@@ -140,10 +140,14 @@ loop(State) ->
 	    error;
 	{tcp_closed, Sock} ->
 	    LogFun = State#state.log_fun,
+	    case LogFun of
+		undefined -> ok;
+		_->
 	    LogFun(?MODULE, ?LINE, debug,
 		   fun() ->
 			   {"mysql_recv: Socket ~p closed", [Sock]}
-		   end),
+		   end)
+		   end,
 	    State#state.parent ! {mysql_recv, self(), closed, normal},
 	    error
     end.

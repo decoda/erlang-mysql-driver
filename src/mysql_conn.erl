@@ -70,8 +70,8 @@
 %%--------------------------------------------------------------------
 %% External exports
 %%--------------------------------------------------------------------
--export([start/8,
-	 start_link/8,
+-export([start/9,
+	 start_link/9,
 	 fetch/3,
 	 fetch/4,
 	 execute/5,
@@ -82,7 +82,7 @@
 
 %% private exports to be called only from the 'mysql' module
 -export([fetch_local/2,
-	 execute_local/3,
+	 execute_local/4,
 	 get_pool_id/1
 	]).
 
@@ -143,18 +143,18 @@
 %%           Pid    = pid()
 %%           Reason = string()
 %%--------------------------------------------------------------------
-start(Host, Port, User, Password, Database, LogFun, Encoding, PoolId) ->
+start(Server, Host, Port, User, Password, Database, LogFun, Encoding, PoolId) ->
     ConnPid = self(),
     Pid = spawn(fun () ->
-			init(Host, Port, User, Password, Database,
+			init(Server, Host, Port, User, Password, Database,
 			     LogFun, Encoding, PoolId, ConnPid)
 		end),
     post_start(Pid, LogFun).
 
-start_link(Host, Port, User, Password, Database, LogFun, Encoding, PoolId) ->
+start_link(Server, Host, Port, User, Password, Database, LogFun, Encoding, PoolId) ->
     ConnPid = self(),
     Pid = spawn_link(fun () ->
-			     init(Host, Port, User, Password, Database,
+			     init(Server, Host, Port, User, Password, Database,
 				  LogFun, Encoding, PoolId, ConnPid)
 		     end),
     post_start(Pid, LogFun).
@@ -236,8 +236,8 @@ get_pool_id(State) ->
 fetch_local(State, Query) ->
     do_query(State, Query).
 
-execute_local(State, Name, Params) ->
-    case do_execute(State, Name, Params, undefined) of
+execute_local(Server, State, Name, Params) ->
+    case do_execute(Server, State, Name, Params, undefined) of
 	{ok, Res, State1} ->
 	    put(?STATE_VAR, State1),
 	    Res;
@@ -266,6 +266,7 @@ do_recv(LogFun, RecvPid, SeqNum)  when is_function(LogFun);
         {mysql_recv, RecvPid, data, Packet, Num} ->
 	    {ok, Packet, Num};
 	{mysql_recv, RecvPid, closed, _E} ->
+		self() ! {mysql_recv, self(), closed, _E},
 	    {error, io_lib:format("mysql_recv: socket was closed ~p", [_E])}
     end;
 do_recv(LogFun, RecvPid, SeqNum) when is_function(LogFun);
@@ -276,6 +277,7 @@ do_recv(LogFun, RecvPid, SeqNum) when is_function(LogFun);
         {mysql_recv, RecvPid, data, Packet, ResponseNum} ->
 	    {ok, Packet, ResponseNum};
 	{mysql_recv, RecvPid, closed, _E} ->
+		self() ! {mysql_recv, self(), closed, _E},
 	    {error, io_lib:format("mysql_recv: socket was closed ~p", [_E])}
     end.
 
@@ -316,14 +318,14 @@ send_msg(Pid, Msg, From, Timeout) ->
 %%           we were successfull.
 %% Returns : void() | does not return
 %%--------------------------------------------------------------------
-init(Host, Port, User, Password, Database, LogFun, Encoding, PoolId, Parent) ->
+init(Server, Host, Port, User, Password, Database, LogFun, Encoding, PoolId, Parent) ->
     case mysql_recv:start_link(Host, Port, LogFun, self()) of
 	{ok, RecvPid, Sock} ->
 	    case mysql_init(Sock, RecvPid, User, Password, LogFun) of
 		{ok, Version} ->
 		    Db = iolist_to_binary(Database),
 		    case do_query(Sock, RecvPid, LogFun,
-				  <<"use `", Db/binary, "`">>,
+				  <<"use ", Db/binary>>,
 				  Version) of
 			{error, MySQLRes} ->
 			    ?Log2(LogFun, error,
@@ -352,7 +354,7 @@ init(Host, Port, User, Password, Database, LogFun, Encoding, PoolId, Parent) ->
 					   pool_id  = PoolId,
 					   data     = <<>>
 					  },
-			    loop(State)
+			    loop(Server, State)
 		    end;
 		{error, _Reason} ->
 		    Parent ! {mysql_conn, self(), {error, login_failed}}
@@ -371,13 +373,13 @@ init(Host, Port, User, Password, Database, LogFun, Encoding, PoolId, Parent) ->
 %%           signals that the socket was closed.
 %% Returns : error | does not return
 %%--------------------------------------------------------------------
-loop(State) ->
+loop(Server, State) ->
     RecvPid = State#state.recv_pid,
     LogFun = State#state.log_fun,
     receive
 	{fetch, Queries, From} ->
 	    send_reply(From, do_queries(State, Queries)),
-	    loop(State);
+	    loop(Server, State);
 	{transaction, Fun, From} ->
 	    put(?STATE_VAR, State),
 
@@ -389,10 +391,10 @@ loop(State) ->
 	    State1 = get(?STATE_VAR),
 
 	    send_reply(From, Res),
-	    loop(State1);
+	    loop(Server, State1);
 	{execute, Name, Version, Params, From} ->
 	    State1 =
-		case do_execute(State, Name, Params, Version) of
+		case do_execute(Server, State, Name, Params, Version) of
 		    {error, _} = Err ->
 			send_reply(From, Err),
 			State;
@@ -400,13 +402,13 @@ loop(State) ->
 			send_reply(From, Result),
 			NewState
 		end,
-	    loop(State1);
+	    loop(Server, State1);
 	{mysql_recv, RecvPid, data, Packet, Num} ->
 	    ?Log2(LogFun, error,
 		 "received data when not expecting any -- "
 		 "ignoring it: {~p, ~p}", [Num, Packet]),
-	    loop(State);
-        Unknown ->
+	    loop(Server, State);
+    Unknown ->
 	    ?Log2(LogFun, error,
 		  "received unknown signal, exiting: ~p", [Unknown]),
 	    error
@@ -429,10 +431,13 @@ do_query(State, Query) ->
 	      ).
 
 do_query(Sock, RecvPid, LogFun, Query, Version) ->
-    Query1 = iolist_to_binary(Query),
-    ?Log2(LogFun, debug, "fetch ~p (id ~p)", [Query1,RecvPid]),
-    Packet =  <<?MYSQL_QUERY_OP, Query1/binary>>,
-    case do_send(Sock, Packet, 0, LogFun) of
+%%     Query1 = iolist_to_binary(Query),
+%%     ?Log2(LogFun, debug, "fetch ~p (id ~p)", [Query1,RecvPid]),
+%%     Packet =  <<?MYSQL_QUERY_OP, Query1/binary>>,
+%%     case do_send(Sock, Packet, 0, LogFun) of
+	Packet = [?MYSQL_QUERY_OP, Query],
+	Data = [<<(iolist_size(Packet)):24/little, 0>>, Packet],
+    case gen_tcp:send(Sock, Data) of
 	ok ->
 	    get_query_response(LogFun,RecvPid,
 				    Version);
@@ -440,7 +445,8 @@ do_query(Sock, RecvPid, LogFun, Query, Version) ->
 	    Msg = io_lib:format("Failed sending data "
 				"on socket : ~p",
 				[Reason]),
-	    {error, Msg}
+		self() ! {mysql_recv, self(), closed, {error, Reason}},
+	    {error, #mysql_result{error=Msg}}
     end.
 
 do_queries(State, Queries) when not is_list(Queries) ->
@@ -492,14 +498,14 @@ rollback(State, Err) ->
     Res = do_query(State, <<"ROLLBACK">>),
     {aborted, {Err, {rollback_result, Res}}}.
 
-do_execute(State, Name, Params, ExpectedVersion) ->
+do_execute(Server, State, Name, Params, ExpectedVersion) ->
     Res = case gb_trees:lookup(Name, State#state.prepares) of
 	      {value, Version} when Version == ExpectedVersion ->
 		  {ok, latest};
 	      {value, Version} ->
-		  mysql:get_prepared(Name, Version);
+		  mysql:get_prepared(Server, Name, Version);
 	      none ->
-		  mysql:get_prepared(Name)
+		  mysql:get_prepared(Server, Name)
 	  end,
     case Res of
 	{ok, latest} ->
@@ -880,7 +886,7 @@ normalize_version(_Other, LogFun) ->
     ?MYSQL_4_0.
 
 %%--------------------------------------------------------------------
-% Function: get_field_datatype(DataType)
+%% Function: get_field_datatype(DataType)
 %%           DataType = integer(), MySQL datatype
 %% Descrip.: Return MySQL field datatype as description string
 %% Returns : String, MySQL datatype

@@ -80,35 +80,38 @@
 
 
 %% External exports
--export([start_link/5,
-	 start_link/6,
+-export([start_link/6,
 	 start_link/7,
 	 start_link/8,
+	 start_link/9,
 
-	 start/5,
 	 start/6,
 	 start/7,
 	 start/8,
+	 start/9,
 
-	 connect/7,
 	 connect/8,
 	 connect/9,
+	 connect/10,
 
 	 fetch/1,
 	 fetch/2,
-	 fetch/3,
+	 fetch/4,
 	 
-	 prepare/2,
+	 prepare/3,
 	 execute/1,
 	 execute/2,
 	 execute/3,
 	 execute/4,
-	 unprepare/1,
-	 get_prepared/1,
+	 execute/5,
+	 unprepare/2,
+	 
 	 get_prepared/2,
+	 get_prepared/3,
 
 	 transaction/2,
 	 transaction/3,
+	 transaction/4,
 
 	 get_result_field_info/1,
 	 get_result_rows/1,
@@ -203,60 +206,60 @@ log(Module, Line, _Level, FormatFun) ->
 %%   Username::string(), Password::string(), Database::string(),
 %%   LogFun::undefined | function() of arity 4) ->
 %%     {ok, Pid} | ignore | {error, Err}
-start_link(PoolId, Host, User, Password, Database) ->
-    start_link(PoolId, Host, ?PORT, User, Password, Database).
+start_link(Server, PoolId, Host, User, Password, Database) ->
+    start_link(Server, PoolId, Host, ?PORT, User, Password, Database).
 
-start_link(PoolId, Host, Port, User, Password, Database) ->
-    start_link(PoolId, Host, Port, User, Password, Database, undefined,
+start_link(Server, PoolId, Host, Port, User, Password, Database) ->
+    start_link(Server, PoolId, Host, Port, User, Password, Database, undefined,
 	       undefined).
 
-start_link(PoolId, Host, undefined, User, Password, Database, LogFun) ->
-    start_link(PoolId, Host, ?PORT, User, Password, Database, LogFun,
+start_link(Server, PoolId, Host, undefined, User, Password, Database, LogFun) ->
+    start_link(Server, PoolId, Host, ?PORT, User, Password, Database, LogFun,
 	       undefined);
-start_link(PoolId, Host, Port, User, Password, Database, LogFun) ->
-    start_link(PoolId, Host, Port, User, Password, Database, LogFun,
+start_link(Server, PoolId, Host, Port, User, Password, Database, LogFun) ->
+    start_link(Server, PoolId, Host, Port, User, Password, Database, LogFun,
 	       undefined).
 
-start_link(PoolId, Host, undefined, User, Password, Database, LogFun,
+start_link(Server, PoolId, Host, undefined, User, Password, Database, LogFun,
 	   Encoding) ->
-    start1(PoolId, Host, ?PORT, User, Password, Database, LogFun, Encoding,
+    start1(Server, PoolId, Host, ?PORT, User, Password, Database, LogFun, Encoding,
 	   start_link);
-start_link(PoolId, Host, Port, User, Password, Database, LogFun, Encoding) ->
-    start1(PoolId, Host, Port, User, Password, Database, LogFun, Encoding,
+start_link(Server, PoolId, Host, Port, User, Password, Database, LogFun, Encoding) ->
+    start1(Server, PoolId, Host, Port, User, Password, Database, LogFun, Encoding,
 	   start_link).
 
 %% @doc These functions are similar to their start_link counterparts,
 %% but they call gen_server:start() instead of gen_server:start_link()
-start(PoolId, Host, User, Password, Database) ->
-    start(PoolId, Host, ?PORT, User, Password, Database).
+start(Server, PoolId, Host, User, Password, Database) ->
+    start(Server, PoolId, Host, ?PORT, User, Password, Database).
 
-start(PoolId, Host, Port, User, Password, Database) ->
-    start(PoolId, Host, Port, User, Password, Database, undefined).
+start(Server, PoolId, Host, Port, User, Password, Database) ->
+    start(Server, PoolId, Host, Port, User, Password, Database, undefined).
 
-start(PoolId, Host, undefined, User, Password, Database, LogFun) ->
-    start(PoolId, Host, ?PORT, User, Password, Database, LogFun);
-start(PoolId, Host, Port, User, Password, Database, LogFun) ->
-    start(PoolId, Host, Port, User, Password, Database, LogFun, undefined).
+start(Server, PoolId, Host, undefined, User, Password, Database, LogFun) ->
+    start(Server, PoolId, Host, ?PORT, User, Password, Database, LogFun);
+start(Server, PoolId, Host, Port, User, Password, Database, LogFun) ->
+    start(Server, PoolId, Host, Port, User, Password, Database, LogFun, undefined).
 
-start(PoolId, Host, undefined, User, Password, Database, LogFun, Encoding) ->
-    start1(PoolId, Host, ?PORT, User, Password, Database, LogFun, Encoding,
+start(Server, PoolId, Host, undefined, User, Password, Database, LogFun, Encoding) ->
+    start1(Server, PoolId, Host, ?PORT, User, Password, Database, LogFun, Encoding,
 	   start);
-start(PoolId, Host, Port, User, Password, Database, LogFun, Encoding) ->
-    start1(PoolId, Host, Port, User, Password, Database, LogFun, Encoding,
+start(Server, PoolId, Host, Port, User, Password, Database, LogFun, Encoding) ->
+    start1(Server, PoolId, Host, Port, User, Password, Database, LogFun, Encoding,
 	   start).
 
-start1(PoolId, Host, Port, User, Password, Database, LogFun, Encoding,
+start1(Server, PoolId, Host, Port, User, Password, Database, LogFun, Encoding,
        StartFunc) ->
     crypto:start(),
     gen_server:StartFunc(
-      {local, ?SERVER}, ?MODULE,
-      [PoolId, Host, Port, User, Password, Database, LogFun, Encoding], []).
+      {local, Server}, ?MODULE,
+      [Server, PoolId, Host, Port, User, Password, Database, LogFun, Encoding], []).
 
 
 %% @equiv connect(PoolId, Host, Port, User, Password, Database, Encoding,
 %%	   Reconnect, true)
-connect(PoolId, Host, Port, User, Password, Database, Encoding, Reconnect) ->
-    connect(PoolId, Host, Port, User, Password, Database, Encoding,
+connect(Server, PoolId, Host, Port, User, Password, Database, Encoding, Reconnect) ->
+    connect(Server, PoolId, Host, Port, User, Password, Database, Encoding,
 	    Reconnect, true).
 
 %% @doc Starts a MySQL connection and, if successful, add it to the
@@ -266,31 +269,31 @@ connect(PoolId, Host, Port, User, Password, Database, Encoding, Reconnect) ->
 %%    User::string(), Password::string(), Database::string(),
 %%    Encoding::string(), Reconnect::bool(), LinkConnection::bool()) ->
 %%      {ok, ConnPid} | {error, Reason}
-connect(PoolId, Host, Port, User, Password, Database, Encoding, Reconnect,
+connect(Server, PoolId, Host, Port, User, Password, Database, Encoding, Reconnect,
        LinkConnection) ->
     Port1 = if Port == undefined -> ?PORT; true -> Port end,
     Fun = if LinkConnection ->
-		  fun mysql_conn:start_link/8;
+		  fun mysql_conn:start_link/9;
 	     true ->
-		  fun mysql_conn:start/8
+		  fun mysql_conn:start/9
 	  end,
 
-   {ok, LogFun} = gen_server:call(?SERVER, get_logfun),
-    case Fun(Host, Port1, User, Password, Database, LogFun,
-	     Encoding, PoolId) of
-	{ok, ConnPid} ->
-	    Conn = new_conn(PoolId, ConnPid, Reconnect, Host, Port1, User,
-			    Password, Database, Encoding),
-	    case gen_server:call(
-		   ?SERVER, {add_conn, Conn}) of
-		ok ->
-		    {ok, ConnPid};
-		Res ->
-		    Res
-	    end;
-	Err->
-	    Err
-    end.
+   {ok, LogFun} = gen_server:call(Server, get_logfun),
+	case Fun(Server, Host, Port1, User, Password, Database, LogFun,
+			 Encoding, PoolId) of
+		{ok, ConnPid} ->
+			Conn = new_conn(PoolId, ConnPid, Reconnect, Host, Port1, User,
+							Password, Database, Encoding),
+			case gen_server:call(
+				   Server, {add_conn, Conn}) of
+				ok ->
+					{ok, ConnPid};
+				Res ->
+					Res
+			end;
+		Err->
+			Err
+	end.
 
 new_conn(PoolId, ConnPid, Reconnect, Host, Port, User, Password, Database,
 	 Encoding) ->
@@ -330,12 +333,12 @@ fetch(Query) ->
 %% @spec fetch(PoolId::atom(), Query::iolist(), Timeout::integer()) ->
 %%   query_result()
 fetch(PoolId, Query) ->
-    fetch(PoolId, Query, undefined).
+    fetch(?SERVER, PoolId, Query, undefined).
 
-fetch(PoolId, Query, Timeout) -> 
+fetch(Server, PoolId, Query, Timeout) -> 
     case get(?STATE_VAR) of
 	undefined ->
-	    call_server({fetch, PoolId, Query}, Timeout);
+	    call_server(Server, {fetch, PoolId, Query}, Timeout);
 	State ->
 	    mysql_conn:fetch_local(State, Query)
     end.
@@ -350,8 +353,8 @@ fetch(PoolId, Query, Timeout) ->
 %%   prepare it again with the newest version.
 %%
 %% @spec prepare(Name::atom(), Query::iolist()) -> ok
-prepare(Name, Query) ->
-    gen_server:cast(?SERVER, {prepare, Name, Query}).
+prepare(Server, Name, Query) ->
+    gen_server:cast(Server, {prepare, Name, Query}).
 
 %% @doc Unregister a statement that has previously been register with
 %%   the dispatcher. All calls to execute() with the given statement
@@ -359,8 +362,8 @@ prepare(Name, Query) ->
 %%   been prepared, nothing happens.
 %%
 %% @spec unprepare(Name::atom()) -> ok
-unprepare(Name) ->
-    gen_server:cast(?SERVER, {unprepare, Name}).
+unprepare(Server, Name) ->
+    gen_server:cast(Server, {unprepare, Name}).
 
 %% @doc Get the prepared statement with the given name.
 %%
@@ -375,10 +378,10 @@ unprepare(Name) ->
 %%
 %% @spec get_prepared(Name::atom(), Version::integer()) ->
 %%   {ok, latest} | {ok, Statement::binary()} | {error, Err}
-get_prepared(Name) ->
-    get_prepared(Name, undefined).
-get_prepared(Name, Version) ->
-    gen_server:call(?SERVER, {get_prepared, Name, Version}).
+get_prepared(Server, Name) ->
+    get_prepared(Server, Name, undefined).
+get_prepared(Server, Name, Version) ->
+    gen_server:call(Server, {get_prepared, Name, Version}).
 
 
 %% @doc Execute a query inside a transaction.
@@ -392,7 +395,7 @@ execute(Name, Params) when is_atom(Name), is_list(Params) ->
 	undefined ->
 	    {error, not_in_transaction};
 	State ->
-	    mysql_conn:execute_local(State, Name, Params)
+	    mysql_conn:execute_local(?SERVER, State, Name, Params)
     end;
 
 %% @doc Execute a query in the connection pool identified by
@@ -413,11 +416,14 @@ execute(PoolId, Name, Params) when is_list(Params) ->
     execute(PoolId, Name, Params, undefined).
 
 execute(PoolId, Name, Params, Timeout) ->
+	execute(?SERVER, PoolId, Name, Params, Timeout).
+
+execute(Server, PoolId, Name, Params, Timeout) ->
     case get(?STATE_VAR) of
 	undefined ->
-	    call_server({execute, PoolId, Name, Params}, Timeout);
+	    call_server(Server, {execute, PoolId, Name, Params}, Timeout);
 	State ->
-	      case mysql_conn:execute_local(State, Name, Params) of
+	      case mysql_conn:execute_local(Server, State, Name, Params) of
 		  {ok, Res, NewState} ->
 		      put(?STATE_VAR, NewState),
 		      Res;
@@ -442,12 +448,15 @@ execute(PoolId, Name, Params, Timeout) ->
 %% @spec transaction(PoolId::atom(), Fun::function()) ->
 %%   {atomic, Result} | {aborted, {Reason, {rollback_result, Result}}}
 transaction(PoolId, Fun) ->
-    transaction(PoolId, Fun, undefined).
+    transaction(?SERVER, PoolId, Fun, undefined).
 
-transaction(PoolId, Fun, Timeout) ->
+transaction(Server, PoolId, Fun) ->
+    transaction(Server, PoolId, Fun, undefined).
+
+transaction(Server, PoolId, Fun, Timeout) ->
     case get(?STATE_VAR) of
 	undefined ->
-	    call_server({transaction, PoolId, Fun}, Timeout);
+	    call_server(Server, {transaction, PoolId, Fun}, Timeout);
 	State ->
 	    case mysql_conn:get_pool_id(State) of
 		PoolId ->
@@ -458,7 +467,7 @@ transaction(PoolId, Fun, Timeout) ->
 			Other -> {atomic, Other}
 		    end;
 		_Other ->
-		    call_server({transaction, PoolId, Fun}, Timeout)
+		    call_server(Server, {transaction, PoolId, Fun}, Timeout)
 	    end
     end.
 
@@ -511,15 +520,15 @@ get_result_insert_id(#mysql_result{insertid=InsertId}) ->
     InsertId.
 
 
-connect(PoolId, Host, undefined, User, Password, Database, Reconnect) ->
-    connect(PoolId, Host, ?PORT, User, Password, Database, undefined,
+connect(Server, PoolId, Host, undefined, User, Password, Database, Reconnect) ->
+    connect(Server, PoolId, Host, ?PORT, User, Password, Database, undefined,
 	    Reconnect).
 
 %% gen_server callbacks
 
-init([PoolId, Host, Port, User, Password, Database, LogFun, Encoding]) ->
+init([Server, PoolId, Host, Port, User, Password, Database, LogFun, Encoding]) ->
     LogFun1 = if LogFun == undefined -> fun log/4; true -> LogFun end,
-    case mysql_conn:start(Host, Port, User, Password, Database, LogFun1,
+    case mysql_conn:start(Server, Host, Port, User, Password, Database, LogFun1,
 			  Encoding, PoolId) of
 	{ok, ConnPid} ->
 	    Conn = new_conn(PoolId, ConnPid, true, Host, Port, User, Password,
@@ -538,7 +547,7 @@ init([PoolId, Host, Port, User, Password, Database, LogFun, Encoding]) ->
 		  password = Password,
 		  database = Database,
 		  encoding = Encoding},
-		  start_reconnect(C, LogFun),
+		  start_reconnect(Server, C, LogFun),
 	    {ok, #state{log_fun = LogFun1}}
     end.
 
@@ -634,7 +643,7 @@ handle_info({'DOWN', _MonitorRef, process, Pid, Info}, State) ->
 		"connection pid ~p exited : ~p", [Pid, Info]),
 	    case Conn#conn.reconnect of
 		true ->
-		    start_reconnect(Conn, LogFun);
+		    start_reconnect(self(), Conn, LogFun);
 		false ->
 		    ok
 	    end,
@@ -678,11 +687,11 @@ with_next_conn(PoolId, State, Fun) ->
 	    {reply, {error, {no_connection_in_pool, PoolId}}, State}
     end.
 
-call_server(Msg, Timeout) ->
+call_server(Server, Msg, Timeout) ->
     if Timeout == undefined ->
-	    gen_server:call(?SERVER, Msg);
+	    gen_server:call(Server, Msg);
        true ->
-	    gen_server:call(?SERVER, Msg, Timeout)
+	    gen_server:call(Server, Msg, Timeout)
     end.
 
 add_conn(Conn, State) ->
@@ -765,10 +774,10 @@ get_next_conn(PoolId, State) ->
 					ConnPools)}}
     end.
 
-start_reconnect(Conn, LogFun) ->
+start_reconnect(Server, Conn, LogFun) ->
     Pid = spawn(fun () ->
       process_flag(trap_exit, true),
-			reconnect_loop(Conn#conn{pid = undefined}, LogFun, 0)
+			reconnect_loop(Server, Conn#conn{pid = undefined}, LogFun, 0)
 		end),
     {PoolId, Host, Port} = {Conn#conn.pool_id, Conn#conn.host, Conn#conn.port},
     ?Log2(LogFun, debug,
@@ -777,9 +786,9 @@ start_reconnect(Conn, LogFun) ->
 	[Pid, PoolId, Host, Port, Conn#conn.pid]),
     ok.
 
-reconnect_loop(Conn, LogFun, N) ->
+reconnect_loop(Server, Conn, LogFun, N) ->
     {PoolId, Host, Port} = {Conn#conn.pool_id, Conn#conn.host, Conn#conn.port},
-    case connect(PoolId,
+    case connect(Server, PoolId,
 		 Host,
 		 Port,
 		 Conn#conn.user,
@@ -794,18 +803,18 @@ reconnect_loop(Conn, LogFun, N) ->
 	    ok;
 	{error, Reason} ->
 	    %% log every once in a while
-      NewN = case N of
-                 1 ->
-               ?Log2(LogFun, debug,
-                   "reconnect: still unable to connect to "
-                   "~p:~s:~p (~p)", [PoolId, Host, Port, Reason]),
-               0;
-                 _ ->
-               N + 1
-             end,
+	    NewN = case N of
+		       10 ->
+			   ?Log2(LogFun, debug,
+			       "reconnect: still unable to connect to "
+			       "~p:~s:~p (~p)", [PoolId, Host, Port, Reason]),
+			   0;
+		       _ ->
+			   N + 1
+		   end,
 	    %% sleep between every unsuccessful attempt
 	    timer:sleep(5000),
-	    reconnect_loop(Conn, LogFun, NewN)
+	    reconnect_loop(Server, Conn, LogFun, NewN)
     end.
 
 
